@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Shirt Archive"
+description = "A dark editorial homepage for a community-driven archive of music band T-shirts, with prominent search and curated catalogue sections."
+version = "1.0.0"
+id = "artifacts/shirt-archive"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22182
+
+[services.development]
+run = "pnpm --filter @workspace/shirt-archive run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/shirt-archive", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/shirt-archive/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22182"
+BASE_PATH = "/"
