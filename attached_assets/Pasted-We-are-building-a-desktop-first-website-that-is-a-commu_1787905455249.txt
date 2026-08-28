@@ -1,0 +1,227 @@
+We are building a desktop-first website that is a community-driven archive of music T-shirts.
+
+The current prototype has a homepage. Keep the existing visual quality and overall structure, but now implement the SEARCH EXPERIENCE.
+
+IMPORTANT PRODUCT PRINCIPLES:
+
+The website is inspired by Discogs in terms of information architecture and community cataloguing, but it is NOT a music database and NOT a marketplace.
+
+The archive has three important levels:
+
+1. ARTIST
+   Example: Metallica
+   Contains all catalogued shirt DESIGNS associated with that artist.
+
+2. DESIGN
+   Example: Master of Puppets
+   A specific visual design/artwork. Different shirts using the same design belong to this design.
+   A design can have multiple VERSIONS.
+
+3. SHIRT VERSION
+   A specific physical/manufacturing version of a design.
+   Example:
+   - Master of Puppets
+   - 1986
+   - Screen Stars
+   - official tour merchandise
+
+   Another version could use the same artwork but be:
+   - a 1990s bootleg
+   - a modern H&M release
+   - a Primark release
+   - etc.
+
+The same artwork can therefore exist across official merchandise, bootlegs, fast-fashion releases and other sources. The origin/provenance must be treated as important cataloguing information.
+
+SEARCH UX:
+
+Create a Discogs-inspired search experience.
+
+When the user clicks/focuses the main search bar and starts typing, show a large autocomplete/search-results panel.
+
+For example, if the user types:
+
+"metallica master of puppets"
+
+the search panel should show clearly separated sections:
+
+ARTISTS
+
+Metallica
+Artist · 184 shirts
+
+DESIGNS
+
+Master of Puppets
+Metallica · 12 versions
+
+SHIRT VERSIONS
+
+Master of Puppets
+1986 · Screen Stars
+87 collectors
+
+Master of Puppets
+1987 · Brockum
+64 collectors
+
+Master of Puppets
+1990s · Bootleg
+21 collectors
+
+At the bottom:
+
+View all results →
+
+The exact numbers are placeholder data for now.
+
+The search should feel like a real archive, not a generic website search.
+
+SEARCH RESULT PRIORITY:
+
+Search results should conceptually prioritize:
+
+1. Relevance to the query
+2. Community popularity / number of collectors
+3. Documentation quality
+4. Recent activity
+
+Do NOT make "most collected" the primary ranking.
+
+The interface should help someone identify a shirt even if they don't know exactly what they are looking for.
+
+Example:
+
+A user owns a Metallica Master of Puppets shirt.
+They see "Screen Stars" on the tag.
+They search "Metallica Master of Puppets" and can quickly compare the different versions and find the matching one.
+
+DESIGN VS VERSION:
+
+This distinction is extremely important.
+
+If several shirts use the same Master of Puppets artwork, they should NOT appear as separate designs.
+
+They should appear as:
+
+Metallica
+→ Master of Puppets (DESIGN)
+→ All versions
+   → 1986 Screen Stars
+   → 1987 Brockum
+   → 1990s Bootleg
+   → 2024 H&M
+   etc.
+
+If Metallica had a completely different shirt design during the same year/tour, that should be a separate DESIGN.
+
+ARTIST SEARCH:
+
+If the user searches "Metallica", an Artist result should be available:
+
+Metallica
+Artist · 184 shirts · 31 designs
+
+Clicking it should eventually lead to an Artist page showing the different designs, NOT every individual shirt version.
+
+DESIGN SEARCH:
+
+If the user searches "Master of Puppets", the Design result should be:
+
+Master of Puppets
+Metallica · 12 versions
+
+Clicking it should eventually lead to a Design page with all versions.
+
+IDENTIFICATION CONFIDENCE:
+
+Introduce a small visual concept for cataloguing confidence, but do not build any gamification yet.
+
+Possible states:
+
+✓ Well documented
+◐ Partially identified
+? Unverified
+
+This is important because the archive should allow incomplete knowledge.
+
+For example:
+
+Master of Puppets
+1986 · Screen Stars
+✓ Well documented
+
+Master of Puppets
+1980s · Unknown
+◐ Partially identified
+
+The confidence indicator should be subtle and secondary to the actual shirt information.
+
+VISUAL DESIGN:
+
+The current prototype is too dark/metal-oriented.
+
+Move the search experience toward a modern fashion archive / cultural catalogue aesthetic.
+
+The website must feel equally appropriate for:
+
+Metallica
+Mayhem
+Taylor Swift
+BTS
+Wu-Tang Clan
+Lana Del Rey
+Black Sabbath
+etc.
+
+Do NOT use visual elements associated with one specific music genre.
+
+Use:
+- warm off-white / light neutral background
+- dark neutral typography
+- subtle borders
+- restrained accent color
+- modern editorial typography
+- clean product/catalogue photography
+- generous spacing
+- strong grid structure
+
+The T-shirts themselves should provide the visual personality and color.
+
+The overall feeling should be:
+modern fashion archive + serious database + approachable consumer website.
+
+The principle is:
+
+"Simple on the surface, obsessive underneath."
+
+The user should be able to understand the site within a few seconds, while enthusiasts can eventually explore extremely detailed cataloguing.
+
+TECHNICAL SCOPE:
+
+For this iteration, focus ONLY on the frontend search experience.
+
+Do not implement:
+- authentication
+- real database
+- marketplace
+- user collections
+- real image uploads
+- advanced filters
+- gamification
+
+Use realistic placeholder data so the search experience feels real.
+
+Make the search interactions functional using local/mock data.
+
+Keep the code clean and easy to understand for a beginner.
+
+Do not remove the existing homepage sections.
+
+Make the main search bar the primary interaction on the homepage.
+
+The tagline should be:
+
+"The living archive of music T-shirts."
+
+Do not use "SHIRT ARCHIVE" as the final brand name. It is only a temporary placeholder until we choose the real name.

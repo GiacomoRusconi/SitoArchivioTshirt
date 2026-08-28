@@ -1,10 +1,11 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import {
+  ArrowRight,
   ArrowUpRight,
   ChevronRight,
   Menu,
@@ -33,6 +34,36 @@ type Shirt = {
   label: string;
   note: string;
 };
+
+type ArtistRecord = {
+  kind: 'artist';
+  id: string;
+  name: string;
+  meta: string;
+};
+
+type DesignRecord = {
+  kind: 'design';
+  id: string;
+  name: string;
+  artist: string;
+  meta: string;
+};
+
+type VersionRecord = {
+  kind: 'version';
+  id: string;
+  design: string;
+  artist: string;
+  year: string;
+  maker: string;
+  collectors: number;
+  confidence: 'verified' | 'partial' | 'unknown';
+  confidenceLabel: string;
+  shirtId?: string;
+};
+
+type SearchResult = ArtistRecord | DesignRecord | VersionRecord;
 
 const latestAdditions: Shirt[] = [
   {
@@ -91,12 +122,12 @@ const collectedThisMonth: Shirt[] = [
     artist: 'Metallica',
     design: 'Master of Puppets',
     year: '1986',
-    origin: 'Music for Nations · UK',
+    origin: 'Screen Stars · US',
     imageTone: 'charcoal',
     artTone: 'sun',
     art: 'MASTER\nOF PUPPETS',
     label: 'MA-86 / 009',
-    note: 'A UK pressing companion with the cemetery horizon and stark cream ink.',
+    note: 'A Screen Stars pressing with the cemetery horizon and stark cream ink. Well documented through tag and print comparisons.',
   },
   {
     id: 'nirvana-smiley-1992',
@@ -126,6 +157,32 @@ const collectedThisMonth: Shirt[] = [
 
 const archiveSeed = [...latestAdditions, ...collectedThisMonth];
 
+const artistRecords: ArtistRecord[] = [
+  { kind: 'artist', id: 'metallica', name: 'Metallica', meta: 'Artist · 184 shirts · 31 designs' },
+  { kind: 'artist', id: 'mayhem', name: 'Mayhem', meta: 'Artist · 76 shirts · 14 designs' },
+  { kind: 'artist', id: 'taylor-swift', name: 'Taylor Swift', meta: 'Artist · 129 shirts · 22 designs' },
+  { kind: 'artist', id: 'bts', name: 'BTS', meta: 'Artist · 91 shirts · 18 designs' },
+  { kind: 'artist', id: 'wu-tang-clan', name: 'Wu-Tang Clan', meta: 'Artist · 113 shirts · 27 designs' },
+  { kind: 'artist', id: 'lana-del-rey', name: 'Lana Del Rey', meta: 'Artist · 48 shirts · 11 designs' },
+  { kind: 'artist', id: 'black-sabbath', name: 'Black Sabbath', meta: 'Artist · 87 shirts · 19 designs' },
+];
+
+const designRecords: DesignRecord[] = [
+  { kind: 'design', id: 'master-of-puppets', name: 'Master of Puppets', artist: 'Metallica', meta: 'Metallica · 12 versions' },
+  { kind: 'design', id: 'damage-inc', name: 'Damage, Inc. / Pushead', artist: 'Metallica', meta: 'Metallica · 8 versions' },
+  { kind: 'design', id: 'vol-4-cross', name: 'The Cross / Vol. 4', artist: 'Black Sabbath', meta: 'Black Sabbath · 6 versions' },
+  { kind: 'design', id: 'goo', name: 'Goo / Raymond Pettibon', artist: 'Sonic Youth', meta: 'Sonic Youth · 9 versions' },
+  { kind: 'design', id: 'dopesmoker', name: 'Dopesmoker', artist: 'Sleep', meta: 'Sleep · 5 versions' },
+];
+
+const versionRecords: VersionRecord[] = [
+  { kind: 'version', id: 'mop-1986-screen-stars', design: 'Master of Puppets', artist: 'Metallica', year: '1986', maker: 'Screen Stars', collectors: 87, confidence: 'verified', confidenceLabel: '✓ Well documented', shirtId: 'metallica-master-1986' },
+  { kind: 'version', id: 'mop-1987-brockum', design: 'Master of Puppets', artist: 'Metallica', year: '1987', maker: 'Brockum', collectors: 64, confidence: 'partial', confidenceLabel: '◐ Partially identified' },
+  { kind: 'version', id: 'mop-1990s-bootleg', design: 'Master of Puppets', artist: 'Metallica', year: '1990s', maker: 'Bootleg', collectors: 21, confidence: 'unknown', confidenceLabel: '? Unverified' },
+  { kind: 'version', id: 'mop-2024-hm', design: 'Master of Puppets', artist: 'Metallica', year: '2024', maker: 'H&M', collectors: 38, confidence: 'verified', confidenceLabel: '✓ Well documented' },
+  { kind: 'version', id: 'damage-1986-fruit', design: 'Damage, Inc. / Pushead', artist: 'Metallica', year: '1986', maker: 'Fruit of the Loom', collectors: 43, confidence: 'verified', confidenceLabel: '✓ Well documented', shirtId: 'metallica-pushead-1986' },
+];
+
 function ImagePlaceholder({ shirt, large = false }: { shirt: Shirt; large?: boolean }) {
   return (
     <div
@@ -135,9 +192,7 @@ function ImagePlaceholder({ shirt, large = false }: { shirt: Shirt; large?: bool
       role="img"
     >
       <div className={`shirt-card__art shirt-card__art--${shirt.artTone}`}>
-        {shirt.art.split('\n').map((line) => (
-          <span key={line}>{line}<br /></span>
-        ))}
+        {shirt.art.split('\n').map((line) => <span key={line}>{line}<br /></span>)}
       </div>
       <span className="shirt-card__label">{shirt.label} / PLATE</span>
     </div>
@@ -161,6 +216,108 @@ function ShirtCard({ shirt, onInspect }: { shirt: Shirt; onInspect: (shirt: Shir
         <span className="shirt-card__origin" data-testid={`text-origin-${shirt.id}`}>{shirt.origin}</span>
       </div>
     </button>
+  );
+}
+
+function SearchResultButton({ result, onChoose }: { result: SearchResult; onChoose: (result: SearchResult) => void }) {
+  const isVersion = result.kind === 'version';
+  const title = isVersion ? result.design : result.name;
+  const meta = isVersion ? `${result.year} · ${result.maker}` : result.meta;
+  return (
+    <button
+      className="search-result"
+      type="button"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => onChoose(result)}
+      data-testid={`search-result-${result.kind}-${result.id}`}
+    >
+      <span className="search-result__main">
+        <span className="search-result__title">{title}</span>
+        <span className="search-result__meta">{isVersion ? meta : result.kind === 'design' ? `${result.artist} · ${result.meta.split(' · ')[1]}` : result.meta}</span>
+        {isVersion && <span className={`confidence confidence--${result.confidence}`}>{result.confidenceLabel}</span>}
+      </span>
+      {isVersion && <span className="search-result__count">{result.collectors} collectors</span>}
+      {!isVersion && <ChevronRight size={15} aria-hidden="true" />}
+    </button>
+  );
+}
+
+function SearchPanel({
+  query,
+  onChoose,
+  onSuggestion,
+  onViewAll,
+}: {
+  query: string;
+  onChoose: (result: SearchResult) => void;
+  onSuggestion: (value: string) => void;
+  onViewAll: () => void;
+}) {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const relevance = (result: SearchResult) => {
+    if (!tokens.length) return 0;
+    const text = result.kind === 'artist'
+      ? result.name
+      : result.kind === 'design'
+        ? `${result.name} ${result.artist}`
+        : `${result.design} ${result.artist} ${result.year} ${result.maker}`;
+    return tokens.reduce((score, token) => score + (text.toLowerCase().includes(token) ? 1 : 0), 0);
+  };
+  const matches = <T extends SearchResult>(records: T[]) =>
+    records.filter((record) => !tokens.length || relevance(record) > 0).sort((a, b) => relevance(b) - relevance(a));
+  const artists = matches(artistRecords).slice(0, 3);
+  const hasDesignTerm = designRecords.some((record) => tokens.some((token) => record.name.toLowerCase().includes(token)));
+  const designs = matches(designRecords).filter((record) => !hasDesignTerm || tokens.some((token) => record.name.toLowerCase().includes(token))).slice(0, 3);
+  const versions = matches(versionRecords).filter((record) => !hasDesignTerm || tokens.some((token) => record.design.toLowerCase().includes(token))).slice(0, 4);
+  const hasResults = artists.length + designs.length + versions.length > 0;
+
+  return (
+    <section id="search-results-panel" className="search-panel" aria-label="Search results" data-testid="search-results-panel">
+      <div className="search-panel__top">
+        <p>{query ? `Showing archive matches for “${query}”` : 'Start with an artist, design, year, or blank'}</p>
+        <p className="search-panel__hint">Relevance first / community context follows</p>
+      </div>
+      {!query && (
+        <div className="search-panel__empty">
+          <strong>Try a familiar reference.</strong>
+          <div className="search-panel__suggestions">
+            {['Metallica Master of Puppets', 'Taylor Swift', 'Screen Stars 1990'].map((suggestion) => (
+              <button className="search-suggestion" type="button" key={suggestion} onMouseDown={(event) => event.preventDefault()} onClick={() => onSuggestion(suggestion)} data-testid={`search-suggestion-${suggestion.toLowerCase().replaceAll(' ', '-')}`}>
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {query && !hasResults && <div className="search-panel__empty" data-testid="search-empty-state">No close match yet. Try an artist, artwork title, or garment label.</div>}
+      {hasResults && (
+        <div className="search-panel__content">
+          {artists.length > 0 && (
+            <div className="search-panel__section">
+              <div className="search-panel__label" data-testid="label-search-artists"><span>ARTISTS</span><span>{artists.length}</span></div>
+              {artists.map((result) => <SearchResultButton key={result.id} result={result} onChoose={onChoose} />)}
+            </div>
+          )}
+          {designs.length > 0 && (
+            <div className="search-panel__section">
+              <div className="search-panel__label" data-testid="label-search-designs"><span>DESIGNS</span><span>{designs.length}</span></div>
+              {designs.map((result) => <SearchResultButton key={result.id} result={result} onChoose={onChoose} />)}
+            </div>
+          )}
+          {versions.length > 0 && (
+            <div className="search-panel__section search-panel__section--versions">
+              <div className="search-panel__label" data-testid="label-search-versions"><span>SHIRT VERSIONS</span><span>same artwork / different provenance</span></div>
+              {versions.map((result) => <SearchResultButton key={result.id} result={result} onChoose={onChoose} />)}
+            </div>
+          )}
+        </div>
+      )}
+      {query && (
+        <button className="search-panel__footer" type="button" onMouseDown={(event) => event.preventDefault()} onClick={onViewAll} data-testid="button-view-all-results">
+          <span>View all results</span><ArrowRight size={15} aria-hidden="true" />
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -189,42 +346,21 @@ function AddShirtModal({ onClose, onAdd }: { onClose: () => void; onAdd: (shirt:
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="add-shirt-title"
-        onMouseDown={(event) => event.stopPropagation()}
-        data-testid="dialog-add-shirt"
-      >
+      <section className="modal" role="dialog" aria-modal="true" aria-labelledby="add-shirt-title" onMouseDown={(event) => event.stopPropagation()} data-testid="dialog-add-shirt">
         <div className="modal__head">
           <div>
             <div className="archive-kicker">Submission desk / 04</div>
             <h2 id="add-shirt-title">Place a record<br />in the drawer.</h2>
           </div>
-          <button className="modal__close" type="button" onClick={onClose} data-testid="button-close-add-shirt" aria-label="Close add a shirt dialog">
-            <X size={16} />
-          </button>
+          <button className="modal__close" type="button" onClick={onClose} data-testid="button-close-add-shirt" aria-label="Close add a shirt dialog"><X size={16} /></button>
         </div>
         <p className="modal__note">This is a local preview only. Your entry will appear in the current catalogue while this page is open.</p>
         <form className="archive-form" onSubmit={handleSubmit}>
-          <label>
-            Artist / band
-            <input value={artist} onChange={(event) => setArtist(event.target.value)} placeholder="e.g. Fugazi" data-testid="input-shirt-artist" autoFocus />
-          </label>
-          <label>
-            Design or tour
-            <input value={design} onChange={(event) => setDesign(event.target.value)} placeholder="e.g. Repeater back print" data-testid="input-shirt-design" />
-          </label>
+          <label>Artist / band<input value={artist} onChange={(event) => setArtist(event.target.value)} placeholder="e.g. Fugazi" data-testid="input-shirt-artist" autoFocus /></label>
+          <label>Design or tour<input value={design} onChange={(event) => setDesign(event.target.value)} placeholder="e.g. Repeater back print" data-testid="input-shirt-design" /></label>
           <div className="form-row">
-            <label>
-              Approx. year
-              <input value={year} onChange={(event) => setYear(event.target.value)} placeholder="1991" data-testid="input-shirt-year" />
-            </label>
-            <label>
-              Brand / origin
-              <input value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="Screen Stars · US" data-testid="input-shirt-origin" />
-            </label>
+            <label>Approx. year<input value={year} onChange={(event) => setYear(event.target.value)} placeholder="1991" data-testid="input-shirt-year" /></label>
+            <label>Brand / origin<input value={origin} onChange={(event) => setOrigin(event.target.value)} placeholder="Screen Stars · US" data-testid="input-shirt-origin" /></label>
           </div>
           <div className="form-actions">
             <button className="header-button" type="button" onClick={onClose} data-testid="button-cancel-add-shirt">Cancel</button>
@@ -241,20 +377,12 @@ function DetailModal({ shirt, onClose }: { shirt: Shirt; onClose: () => void }) 
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="modal" role="dialog" aria-modal="true" aria-labelledby="detail-title" onMouseDown={(event) => event.stopPropagation()} data-testid={`dialog-detail-${shirt.id}`}>
         <div className="modal__head">
-          <div>
-            <div className="archive-kicker">Record {shirt.label}</div>
-            <h2 id="detail-title">{shirt.artist}<br />{shirt.design}</h2>
-          </div>
-          <button className="modal__close" type="button" onClick={onClose} data-testid="button-close-detail" aria-label="Close shirt details">
-            <X size={16} />
-          </button>
+          <div><div className="archive-kicker">Record {shirt.label}</div><h2 id="detail-title">{shirt.artist}<br />{shirt.design}</h2></div>
+          <button className="modal__close" type="button" onClick={onClose} data-testid="button-close-detail" aria-label="Close shirt details"><X size={16} /></button>
         </div>
         <ImagePlaceholder shirt={shirt} large />
         <p className="modal__note">{shirt.note}</p>
-        <div className="detail-meta">
-          <span><b>YEAR</b> {shirt.year}</span>
-          <span><b>ORIGIN</b> {shirt.origin}</span>
-        </div>
+        <div className="detail-meta"><span><b>YEAR</b> {shirt.year}</span><span><b>ORIGIN</b> {shirt.origin}</span></div>
       </section>
     </div>
   );
@@ -262,24 +390,39 @@ function DetailModal({ shirt, onClose }: { shirt: Shirt; onClose: () => void }) 
 
 function Home() {
   const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [selectedShirt, setSelectedShirt] = useState<Shirt | null>(null);
   const [submittedShirts, setSubmittedShirts] = useState<Shirt[]>([]);
   const [feedback, setFeedback] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
 
   const visibleArchive = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const queryTokens = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const records = [...submittedShirts, ...archiveSeed];
-    if (!query) return records;
-    return records.filter((shirt) =>
-      [shirt.artist, shirt.design, shirt.year, shirt.origin, shirt.note].some((value) => value.toLowerCase().includes(query)),
-    );
+    if (!queryTokens.length) return records;
+    return records.filter((shirt) => {
+      const fields = [shirt.artist, shirt.design, shirt.year, shirt.origin, shirt.note].map((value) => value.toLowerCase());
+      return queryTokens.every((token) => fields.some((field) => field.includes(token)));
+    });
   }, [search, submittedShirts]);
 
   const visibleLatest = visibleArchive.filter((shirt) => latestAdditions.some((item) => item.id === shirt.id) || shirt.id.startsWith('submitted'));
   const visibleCollected = visibleArchive.filter((shirt) => collectedThisMonth.some((item) => item.id === shirt.id));
   const randomShirt = visibleArchive[visibleArchive.length > 0 ? visibleArchive.length - 1 : 0];
+  const showSearchPanel = searchOpen || search.trim().length > 0;
 
   const announce = (message: string) => {
     setFeedback(message);
@@ -292,31 +435,34 @@ function Home() {
     announce('Record placed in the local intake drawer.');
   };
 
+  const handleSearchChoose = (result: SearchResult) => {
+    setSearchOpen(false);
+    if (result.kind === 'version' && result.shirtId) {
+      const shirt = [...submittedShirts, ...archiveSeed].find((item) => item.id === result.shirtId);
+      if (shirt) {
+        setSelectedShirt(shirt);
+        return;
+      }
+    }
+    const label = result.kind === 'artist' ? 'artist' : result.kind === 'design' ? 'design' : 'shirt version';
+    announce(`${result.kind === 'version' ? result.design : result.kind === 'design' ? result.name : result.name} is catalogued as a ${label}.`);
+  };
+
   return (
     <div className="archive-shell">
       <header className="archive-header">
         <a href="/" className="archive-mark" data-testid="link-home">SHIRT ARCHIVE</a>
         <div className="archive-kicker">A community catalogue / est. 2018</div>
         <div className="header-actions">
-          <button className="header-button header-button--add" type="button" onClick={() => setAddOpen(true)} data-testid="button-add-shirt">
-            <Plus size={14} /> <span>Add a shirt</span>
-          </button>
-          <button className="header-button header-button--menu" type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={menuOpen ? 'Close archive menu' : 'Open archive menu'} data-testid="button-menu">
-            {menuOpen ? <X size={16} /> : <Menu size={16} />}
-          </button>
+          <button className="header-button header-button--add" type="button" onClick={() => setAddOpen(true)} data-testid="button-add-shirt"><Plus size={14} /> <span>Add a shirt</span></button>
+          <button className="header-button header-button--menu" type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-label={menuOpen ? 'Close archive menu' : 'Open archive menu'} data-testid="button-menu">{menuOpen ? <X size={16} /> : <Menu size={16} />}</button>
         </div>
         {menuOpen && (
           <nav className="menu-panel" aria-label="Archive menu" data-testid="menu-panel">
             <div className="menu-panel__eyebrow">The reference room</div>
-            <button className="menu-link" type="button" onClick={() => { setMenuOpen(false); announce('Decade index is being carefully filed.'); }} data-testid="menu-decade-index">
-              Browse the decade index <ChevronRight size={14} />
-            </button>
-            <button className="menu-link" type="button" onClick={() => { setMenuOpen(false); announce('Archive notes: provenance over popularity.'); }} data-testid="menu-archive-notes">
-              Read archive notes <ChevronRight size={14} />
-            </button>
-            <button className="menu-link" type="button" onClick={() => { setMenuOpen(false); setAddOpen(true); }} data-testid="menu-submit-record">
-              Submit a record <ChevronRight size={14} />
-            </button>
+            <button className="menu-link" type="button" onClick={() => { setMenuOpen(false); announce('Decade index is being carefully filed.'); }} data-testid="menu-decade-index">Browse the decade index <ChevronRight size={14} /></button>
+            <button className="menu-link" type="button" onClick={() => { setMenuOpen(false); announce('Archive notes: provenance over popularity.'); }} data-testid="menu-archive-notes">Read archive notes <ChevronRight size={14} /></button>
+            <button className="menu-link" type="button" onClick={() => { setMenuOpen(false); setAddOpen(true); }} data-testid="menu-submit-record">Submit a record <ChevronRight size={14} /></button>
           </nav>
         )}
       </header>
@@ -324,85 +470,65 @@ function Home() {
       <main>
         <section className="hero" aria-labelledby="page-title">
           <div className="hero__stamp">A living reference catalogue</div>
-          <h1 id="page-title" data-testid="heading-home">The graphic language<br />of <em>loud music.</em></h1>
+          <h1 id="page-title" data-testid="heading-home">The living archive<br /><em>of music T-shirts.</em></h1>
           <p className="hero__copy" data-testid="text-home-intro">A quiet, obsessive record of the shirts that travelled with the music. Browse the marks, blanks, bootlegs, and memories.</p>
           <div className="search-wrap">
             <Search className="search-icon" size={22} strokeWidth={1.5} />
             <input
+              ref={searchInputRef}
               className="search-input"
               type="search"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => { setSearch(event.target.value); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={(event) => {
+                if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node | null)) {
+                  window.setTimeout(() => setSearchOpen(false), 0);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setSearchOpen(false);
+                  event.currentTarget.blur();
+                }
+                if (event.key === 'Enter' && search.trim()) announce(`Searching the local index for “${search.trim()}”.`);
+              }}
               placeholder="Search artists, designs, years, brands..."
               aria-label="Search artists, designs, years, brands"
+              aria-expanded={showSearchPanel}
+              aria-controls="search-results-panel"
               data-testid="input-search"
             />
-            <div className="search-meta">
-              <span>{search ? `${visibleArchive.length} matching records` : 'Try: Pushead, 1990, Screen Stars'}</span>
-              <span>CTRL K / search</span>
-            </div>
+            <div className="search-meta"><span>{search ? `${visibleArchive.length} matching records` : 'Try: Pushead, 1990, Screen Stars'}</span><span>CTRL K / search</span></div>
+            {showSearchPanel && <SearchPanel query={search} onChoose={handleSearchChoose} onSuggestion={(value) => { setSearch(value); setSearchOpen(true); }} onViewAll={() => { setSearchOpen(false); announce(`Showing every local result related to “${search.trim()}”.`); }} />}
           </div>
         </section>
 
         <div className="catalogue">
           <section className="catalogue-section catalogue-section--latest" aria-labelledby="latest-title">
-            <div className="section-heading">
-              <h2 id="latest-title">Latest additions</h2>
-              <span data-testid="text-latest-count">{visibleLatest.length} records / recent intake</span>
-            </div>
-            {visibleLatest.length > 0 ? (
-              <div className="shirt-grid">
-                {visibleLatest.map((shirt) => <ShirtCard key={shirt.id} shirt={shirt} onInspect={setSelectedShirt} />)}
-              </div>
-            ) : (
-              <div className="empty-state" data-testid="empty-latest"><strong>No record found.</strong>The drawer is quiet for this search.</div>
-            )}
+            <div className="section-heading"><h2 id="latest-title">Latest additions</h2><span data-testid="text-latest-count">{visibleLatest.length} records / recent intake</span></div>
+            {visibleLatest.length > 0 ? <div className="shirt-grid">{visibleLatest.map((shirt) => <ShirtCard key={shirt.id} shirt={shirt} onInspect={setSelectedShirt} />)}</div> : <div className="empty-state" data-testid="empty-latest"><strong>No record found.</strong>The drawer is quiet for this search.</div>}
           </section>
 
           <section className="catalogue-section" aria-labelledby="collected-title">
-            <div className="section-heading">
-              <h2 id="collected-title">Most collected this month</h2>
-              <span>Filed by the community / 06.24</span>
-            </div>
-            {visibleCollected.length > 0 ? (
-              <div className="collected-rail" data-testid="collection-rail">
-                {visibleCollected.map((shirt) => <ShirtCard key={shirt.id} shirt={shirt} onInspect={setSelectedShirt} />)}
-              </div>
-            ) : (
-              <div className="empty-state" data-testid="empty-collected"><strong>Nothing in this index.</strong>Try a broader search term.</div>
-            )}
+            <div className="section-heading"><h2 id="collected-title">Most collected this month</h2><span>Filed by the community / 06.24</span></div>
+            {visibleCollected.length > 0 ? <div className="collected-rail" data-testid="collection-rail">{visibleCollected.map((shirt) => <ShirtCard key={shirt.id} shirt={shirt} onInspect={setSelectedShirt} />)}</div> : <div className="empty-state" data-testid="empty-collected"><strong>Nothing in this index.</strong>Try a broader search term.</div>}
           </section>
 
           {randomShirt && (
             <section className="catalogue-section" aria-labelledby="random-title">
-              <div className="section-heading">
-                <h2 id="random-title">Random shirt</h2>
-                <span>One record pulled from the drawer</span>
-              </div>
+              <div className="section-heading"><h2 id="random-title">Random shirt</h2><span>One record pulled from the drawer</span></div>
               <article className="random-record" data-testid="feature-random-shirt">
-                <button className="random-record__visual" type="button" onClick={() => setSelectedShirt(randomShirt)} aria-label={`Inspect random shirt: ${randomShirt.artist}`} data-testid="button-random-shirt">
-                  <div className="shirt-card__art shirt-card__art--sun">
-                    {randomShirt.art.split('\n').map((line) => <span key={line}>{line}<br /></span>)}
-                  </div>
-                </button>
-                <div className="random-record__content">
-                  <div>
-                    <div className="archive-kicker">Pulled at random / {randomShirt.label}</div>
-                    <h3>{randomShirt.artist}<br />{randomShirt.design}</h3>
-                    <p>{randomShirt.note}</p>
-                  </div>
-                  <button className="record-link" type="button" onClick={() => setSelectedShirt(randomShirt)} data-testid="button-inspect-random">
-                    Inspect this record <ArrowUpRight size={15} />
-                  </button>
-                </div>
+                <button className="random-record__visual" type="button" onClick={() => setSelectedShirt(randomShirt)} aria-label={`Inspect random shirt: ${randomShirt.artist}`} data-testid="button-random-shirt"><div className="shirt-card__art shirt-card__art--sun">{randomShirt.art.split('\n').map((line) => <span key={line}>{line}<br /></span>)}</div></button>
+                <div className="random-record__content"><div><div className="archive-kicker">Pulled at random / {randomShirt.label}</div><h3>{randomShirt.artist}<br />{randomShirt.design}</h3><p>{randomShirt.note}</p></div><button className="record-link" type="button" onClick={() => setSelectedShirt(randomShirt)} data-testid="button-inspect-random">Inspect this record <ArrowUpRight size={15} /></button></div>
               </article>
             </section>
           )}
         </div>
       </main>
 
-      <footer className="archive-header" style={{ borderTop: '1px solid #34363a', marginTop: 15 }}>
-        <span className="archive-kicker">© Shirt Archive / all provenance welcome</span>
+      <footer className="archive-header archive-footer" style={{ borderTop: '1px solid #d2c8bb', marginTop: 15 }}>
+        <span className="archive-kicker">© The Tee Index / all provenance welcome</span>
         <span className="archive-kicker">Vol. 06 — graphic language</span>
       </footer>
       {feedback && <div className="feedback" role="status" data-testid="status-feedback">{feedback}</div>}
@@ -414,8 +540,6 @@ function Home() {
 
 function Router() {
   return (
-    // Keep a shared shell (sidebar, navbar) outside the boundary so it
-    // survives a page crash.
     <RoutedErrorBoundary>
       <Switch>
         <Route path="/" component={Home} />
